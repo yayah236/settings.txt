@@ -1,0 +1,402 @@
+[VisualSettings]
+
+BloomEnabled=true
+BloomIntensity=0.80
+BloomSize=24
+BloomThreshold=0.80
+
+ColorCorrectionEnabled=true
+Brightness=-0.05
+Contrast=0.35
+Saturation=0.40
+TintR=1.0
+TintG=1.0
+TintB=1.0
+
+DepthOfFieldEnabled=true
+DOFFarIntensity=0.20
+DOFNearIntensity=0.10
+DOFFocusDistance=25
+DOFInFocusRadius=20
+
+BlurEnabled=false
+BlurSize=2
+
+VignetteEnabled=false
+VignetteIntensity=0.0
+
+Exposure=-0.259
+
+AmbientIntensity=3.35
+
+FilmGrainEnabled=false
+FilmGrainIntensity=0.50
+
+MotionBlurEnabled=false
+MotionBlurStrength=0.40
+
+ChromaticAberrationEnabled=false
+ChromaticAberrationStrength=0.50
+
+ClarityEnabled=true
+ClarityStrength=0.40
+
+Vibrance=0.181
+
+TechnicolorEnabled=true
+TechnicolorStrength=0.40
+
+LevelsBlackPoint=16
+LevelsWhitePoint=235
+
+After committing it, click Raw on GitHub. You'll get something similar to:
+
+https://raw.githubusercontent.com/YourUsername/YourRepository/main/settings.txt
+
+You'll put that URL into the Roblox script below.
+
+2. Complete Roblox script
+Create a normal Script in ServerScriptService and paste this in:
+
+--[[
+	Roblox Visual Preset Loader
+	Loads visual settings from GitHub and applies
+	Roblox-compatible post-processing effects.
+
+	Place this Script inside:
+	ServerScriptService
+
+	IMPORTANT:
+	Enable:
+	Game Settings -> Security -> Allow HTTP Requests
+]]
+
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+
+--------------------------------------------------
+-- CONFIGURATION
+--------------------------------------------------
+
+local SETTINGS_URL = "https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPOSITORY/main/settings.txt"
+
+--------------------------------------------------
+-- PARSER
+--------------------------------------------------
+
+local settings = {}
+local currentSection = ""
+
+local function parseValue(value)
+	value = value:match("^%s*(.-)%s*$")
+
+	if value == "true" then
+		return true
+	elseif value == "false" then
+		return false
+	end
+
+	local number = tonumber(value)
+
+	if number ~= nil then
+		return number
+	end
+
+	return value
+end
+
+local function parseSettings(data)
+	settings = {}
+	currentSection = ""
+
+	for line in data:gmatch("[^\r\n]+") do
+
+		-- Remove comments
+		line = line:gsub("#.*$", "")
+		line = line:gsub("^%s+", "")
+		line = line:gsub("%s+$", "")
+
+		if line ~= "" then
+
+			-- Section
+			local section = line:match("^%[(.-)%]$")
+
+			if section then
+				currentSection = section
+
+				if not settings[currentSection] then
+					settings[currentSection] = {}
+				end
+
+			else
+
+				-- Key=value
+				local key, value = line:match("^([^=]+)=(.*)$")
+
+				if key and value then
+					key = key:gsub("^%s+", ""):gsub("%s+$", "")
+					settings[currentSection][key] = parseValue(value)
+				end
+			end
+		end
+	end
+
+	return settings
+end
+
+--------------------------------------------------
+-- HELPERS
+--------------------------------------------------
+
+local function get(section, key, default)
+	if settings[section] and settings[section][key] ~= nil then
+		return settings[section][key]
+	end
+
+	return default
+end
+
+local function getEffect(className, name)
+	local existing = Lighting:FindFirstChild(name)
+
+	if existing and existing:IsA(className) then
+		return existing
+	end
+
+	if existing then
+		existing:Destroy()
+	end
+
+	local effect = Instance.new(className)
+	effect.Name = name
+	effect.Parent = Lighting
+
+	return effect
+end
+
+--------------------------------------------------
+-- BLOOM
+--------------------------------------------------
+
+local bloom = getEffect("BloomEffect", "GitHub_Bloom")
+
+bloom.Enabled = get("VisualSettings", "BloomEnabled", true)
+bloom.Intensity = get("VisualSettings", "BloomIntensity", 0.8)
+bloom.Size = get("VisualSettings", "BloomSize", 24)
+bloom.Threshold = get("VisualSettings", "BloomThreshold", 0.8)
+
+--------------------------------------------------
+-- COLOR CORRECTION
+--------------------------------------------------
+
+local colorCorrection = getEffect(
+	"ColorCorrectionEffect",
+	"GitHub_ColorCorrection"
+)
+
+colorCorrection.Enabled =
+	get("VisualSettings", "ColorCorrectionEnabled", true)
+
+colorCorrection.Brightness =
+	get("VisualSettings", "Brightness", -0.05)
+
+colorCorrection.Contrast =
+	get("VisualSettings", "Contrast", 0.35)
+
+colorCorrection.Saturation =
+	get("VisualSettings", "Saturation", 0.40)
+
+local tintR = get("VisualSettings", "TintR", 1)
+local tintG = get("VisualSettings", "TintG", 1)
+local tintB = get("VisualSettings", "TintB", 1)
+
+colorCorrection.TintColor = Color3.new(
+	tintR,
+	tintG,
+	tintB
+)
+
+--------------------------------------------------
+-- DEPTH OF FIELD
+--------------------------------------------------
+
+local dof = getEffect(
+	"DepthOfFieldEffect",
+	"GitHub_DepthOfField"
+)
+
+dof.Enabled =
+	get("VisualSettings", "DepthOfFieldEnabled", true)
+
+dof.FarIntensity =
+	get("VisualSettings", "DOFFarIntensity", 0.20)
+
+dof.NearIntensity =
+	get("VisualSettings", "DOFNearIntensity", 0.10)
+
+dof.FocusDistance =
+	get("VisualSettings", "DOFFocusDistance", 25)
+
+dof.InFocusRadius =
+	get("VisualSettings", "DOFInFocusRadius", 20)
+
+--------------------------------------------------
+-- BLUR
+--------------------------------------------------
+
+local blur = getEffect(
+	"BlurEffect",
+	"GitHub_Blur"
+)
+
+blur.Enabled =
+	get("VisualSettings", "BlurEnabled", false)
+
+blur.Size =
+	get("VisualSettings", "BlurSize", 2)
+
+--------------------------------------------------
+-- EXPOSURE
+--------------------------------------------------
+
+Lighting.ExposureCompensation =
+	get("VisualSettings", "Exposure", -0.259)
+
+--------------------------------------------------
+-- AMBIENT LIGHT
+--------------------------------------------------
+
+local ambientIntensity =
+	get("VisualSettings", "AmbientIntensity", 3.35)
+
+-- Approximate the ReShade ambient-light effect.
+local ambient = math.clamp(ambientIntensity / 10, 0, 1)
+
+Lighting.EnvironmentDiffuseScale = ambient
+Lighting.EnvironmentSpecularScale = math.clamp(ambient + 0.15, 0, 1)
+
+--------------------------------------------------
+-- LOAD GITHUB FILE
+--------------------------------------------------
+
+local function loadSettings()
+
+	local success, result = pcall(function()
+		return HttpService:GetAsync(SETTINGS_URL)
+	end)
+
+	if not success then
+		warn("[Visual Loader] Failed to download settings:")
+		warn(result)
+		return false
+	end
+
+	if not result or result == "" then
+		warn("[Visual Loader] GitHub returned an empty file.")
+		return false
+	end
+
+	parseSettings(result)
+
+	print("[Visual Loader] Settings downloaded successfully.")
+
+	return true
+end
+
+--------------------------------------------------
+-- APPLY SETTINGS
+--------------------------------------------------
+
+local success = loadSettings()
+
+if success then
+
+	--------------------------------------------------
+	-- BLOOM
+	--------------------------------------------------
+
+	bloom.Enabled =
+		get("VisualSettings", "BloomEnabled", true)
+
+	bloom.Intensity =
+		get("VisualSettings", "BloomIntensity", 0.8)
+
+	bloom.Size =
+		get("VisualSettings", "BloomSize", 24)
+
+	bloom.Threshold =
+		get("VisualSettings", "BloomThreshold", 0.8)
+
+	--------------------------------------------------
+	-- COLOR
+	--------------------------------------------------
+
+	colorCorrection.Enabled =
+		get("VisualSettings", "ColorCorrectionEnabled", true)
+
+	colorCorrection.Brightness =
+		get("VisualSettings", "Brightness", -0.05)
+
+	colorCorrection.Contrast =
+		get("VisualSettings", "Contrast", 0.35)
+
+	colorCorrection.Saturation =
+		get("VisualSettings", "Saturation", 0.40)
+
+	colorCorrection.TintColor = Color3.new(
+		get("VisualSettings", "TintR", 1),
+		get("VisualSettings", "TintG", 1),
+		get("VisualSettings", "TintB", 1)
+	)
+
+	--------------------------------------------------
+	-- DOF
+	--------------------------------------------------
+
+	dof.Enabled =
+		get("VisualSettings", "DepthOfFieldEnabled", true)
+
+	dof.FarIntensity =
+		get("VisualSettings", "DOFFarIntensity", 0.20)
+
+	dof.NearIntensity =
+		get("VisualSettings", "DOFNearIntensity", 0.10)
+
+	dof.FocusDistance =
+		get("VisualSettings", "DOFFocusDistance", 25)
+
+	dof.InFocusRadius =
+		get("VisualSettings", "DOFInFocusRadius", 20)
+
+	--------------------------------------------------
+	-- BLUR
+	--------------------------------------------------
+
+	blur.Enabled =
+		get("VisualSettings", "BlurEnabled", false)
+
+	blur.Size =
+		get("VisualSettings", "BlurSize", 2)
+
+	--------------------------------------------------
+	-- LIGHTING
+	--------------------------------------------------
+
+	Lighting.ExposureCompensation =
+		get("VisualSettings", "Exposure", -0.259)
+
+	local ambientIntensity =
+		get("VisualSettings", "AmbientIntensity", 3.35)
+
+	local ambient =
+		math.clamp(ambientIntensity / 10, 0, 1)
+
+	Lighting.EnvironmentDiffuseScale = ambient
+	Lighting.EnvironmentSpecularScale =
+		math.clamp(ambient + 0.15, 0, 1)
+
+	print("[Visual Loader] Visual preset applied.")
+
+else
+
+	warn("[Visual Loader] Using default Roblox lighting.")
